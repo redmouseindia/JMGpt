@@ -1,7 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import chromadb
-from sentence_transformers import SentenceTransformer
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 import os
@@ -32,17 +30,8 @@ from langchain_anthropic import ChatAnthropic
 
 @app.on_event("startup")
 async def startup_event():
-    global embedding_model, chroma_client, collection, llm
-    print("Loading embedding model...")
-    embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+    global llm
     
-    print("Connecting to ChromaDB...")
-    try:
-        chroma_client = chromadb.PersistentClient(path="./chroma_db")
-        collection = chroma_client.get_collection("astrology_rules")
-    except Exception as e:
-        print(f"Warning: Could not connect to ChromaDB. Did you run ingest.py? Error: {e}")
-        
     print("Initializing LLM...")
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     google_key = os.getenv("GOOGLE_API_KEY")

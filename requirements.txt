@@ -1,7 +1,5 @@
 fastapi
 uvicorn
-chromadb
-sentence-transformers
 langchain-google-genai
 langchain-core
 langchain-anthropic
