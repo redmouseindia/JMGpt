@@ -85,8 +85,7 @@ async def chat_endpoint(request: ChatRequest):
 
     query = request.query
 
-    # LONG-CONTEXT RAG: Bypass the Vector Database entirely!
-    # Load all rules directly into context to guarantee 100% accuracy.
+    # LONG-CONTEXT RAG: Load the entire classical treatise into context
     try:
         with open("chunks.txt", "r", encoding="utf-8") as f:
             all_rules = f.read()
@@ -97,30 +96,69 @@ async def chat_endpoint(request: ChatRequest):
     all_rules += "\n\n[Chapter 99 - Test Yogas]\nIf there are planets other than Sun in the 2nd house from Moon Sunaphaa yoga is present."
 
     prompt_template = """
-    You are an expert Vedic astrologer. A user is asking an astrological question based on a chart.
-    
-    CRITICAL INSTRUCTION: First, use your internal astrological knowledge to map the relationships between the planets mentioned in the User's query (e.g., dynamically calculate which house a planet is in relative to another, such as Cancer being the 2nd house from Gemini).
-    Then, carefully search the Context below for any rules that match these calculated relationships.
-    You must base your final prediction ONLY on the traditional rules provided in the Context.
-    If the context does not contain a matching rule, politely say that you cannot find the specific rule in your texts.
+You are JMGPT, an advanced Vedic Astrology AI Research Engine modeled after Google's NotebookLM.
+You have been loaded with the entire classical treatise *Bhavartha Ratnakara* by Sri Ramanujacharya (translated with notes by B.V. Raman).
 
-    Context (Rules from Bhavartha Ratnakara):
-    {context}
+Your goal is to provide an exhaustive, scholarly, NotebookLM-grade analytical research report answering the user's astrological query based ONLY on the provided text.
 
-    User Question: {query}
-    
-    Astrologer's Response:
-    """
+CRITICAL REASONING INSTRUCTIONS:
+1. **Map Relationships**: First, calculate the planetary relationships and house positions mentioned in the user's chart/query (e.g., identify Lagna, lords of houses, functional benefics/malefics, and mutual aspects).
+2. **Exhaustive Scan**: Scan the entire text below across ALL chapters (Lagna chapters, Dhana Yogas, Raja Yogas, Bhagyasthanas, Exceptions, etc.) to gather every single stanza or rule that applies to this planetary combination.
+3. **NotebookLM Formatting**: Structure your response into a brilliant, beautifully formatted Markdown research report with these exact sections:
+   - **🎯 Executive Astrological Verdict**: A direct, authoritative summary of what *Bhavartha Ratnakara* predicts for this query.
+   - **📜 Classical Principles & Yogas Found**: Cite the specific rules, stanzas, and chapters from the text that govern this query. Quote the classical principles clearly.
+   - **🪐 Deep-Dive Synthesis**: Explain step-by-step *why* this result occurs according to Ramanujacharya's logic (house lordships, aspects, functional nature, etc.).
+   - **⚠️ Nuances & Exceptions (Bhanga)**: Highlight any special caveats, cancellations, or unique conditions mentioned in the book that could alter or qualify the result.
+4. **Scholarly Integrity**: Base your conclusions strictly on the text provided. Do not invent rules not present in *Bhavartha Ratnakara*.
+
+Context (Complete text of Bhavartha Ratnakara):
+{context}
+
+User Question: {query}
+
+YOU MUST RETURN YOUR RESPONSE AS A STRICT JSON OBJECT with exactly two fields:
+1. "answer": Your complete, beautifully formatted Markdown analytical report.
+2. "retrieved_rules": A JSON array of strings containing the top 3 to 6 exact classical rules/stanzas from the text that you cited (include chapter/section names).
+
+Example JSON Output:
+{{
+  "answer": "### 🎯 Executive Astrological Verdict\\n...your markdown...",
+  "retrieved_rules": [
+    "Chapter 1 (Aries Lagna): A person born in Aries Lagna becomes fortunate if Jupiter and Sun are in the 5th house.",
+    "Chapter 2 (Dhana Yogas): If the 2nd lord is in the 11th and 11th lord in the 2nd, immense wealth is generated."
+  ]
+}}
+"""
     
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "query"])
     final_prompt = prompt.format(context=all_rules, query=query)
     
     try:
         response = llm.invoke(final_prompt)
-        return ChatResponse(
-            answer=response.content,
-            retrieved_rules=["(Used Long-Context RAG: Entire book loaded into memory for 100% accuracy)"]
-        )
+        content = response.content.strip()
+        
+        # Clean markdown code block formatting if present
+        if content.startswith("```json"):
+            content = content[7:]
+        elif content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        
+        import json
+        try:
+            data = json.loads(content)
+            return ChatResponse(
+                answer=data.get("answer", response.content),
+                retrieved_rules=data.get("retrieved_rules", ["(Synthesized from full Bhavartha Ratnakara treatise)"])
+            )
+        except Exception as json_err:
+            # Fallback if model returned pure markdown instead of JSON
+            return ChatResponse(
+                answer=response.content,
+                retrieved_rules=["(Used NotebookLM-Style Full Context RAG Synthesis)"]
+            )
     except Exception as e:
         import traceback
         traceback.print_exc()
